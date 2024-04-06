@@ -45,7 +45,114 @@ func isType[T any](t *testing.T, obj any) T {
 func testIntegerLiteral(t *testing.T, exp ast.Expression, val int64) {
 	intLit := isType[*ast.IntegerLiteral](t, exp)
 	require.Equal(t, val, intLit.Value)
-	require.Equal(t, intLit.TokenLiteral(), fmt.Sprintf("%d", val))
+	require.Equal(t, fmt.Sprintf("%d", val), intLit.TokenLiteral())
+}
+
+func testIdentifier(t *testing.T, want ast.Expression, got ast.Expression) {
+	wident := isType[*ast.Identifier](t, want)
+	ident := isType[*ast.Identifier](t, got)
+	require.Equal(t, wident.Value, ident.Value)
+	require.Equal(t, wident.TokenLiteral(), ident.TokenLiteral())
+}
+
+func testBooleanLiteral(t *testing.T, want bool, got ast.Expression) {
+	bexp := isType[*ast.Boolean](t, got)
+	require.Equal(t, want, bexp.Value)
+	require.Equal(t, fmt.Sprintf("%t", want), bexp.TokenLiteral())
+}
+
+func testLiteralExpression(
+	t *testing.T,
+	want any,
+	got any,
+) {
+	var exp ast.Expression
+	switch gv := got.(type) {
+	case *ast.ExpressionStatement:
+		exp = gv.Expression
+	case ast.Expression:
+		exp = gv
+	default:
+		t.Errorf("type of exp not handled. got=%T", got)
+	}
+
+	switch v := want.(type) {
+	case *ast.ExpressionStatement:
+		testLiteralExpression(t, v.Expression, exp)
+	case *ast.IntegerLiteral:
+		testIntegerLiteral(t, exp, v.Value)
+	case int:
+		testIntegerLiteral(t, exp, int64(v))
+	case int64:
+		testIntegerLiteral(t, exp, v)
+	case string:
+		testIdentifier(t, &ast.Identifier{
+			Token: token.Token{
+				Type:    token.IDENT,
+				Literal: v,
+			},
+			Value: v,
+		}, exp)
+	case *ast.Identifier:
+		testIdentifier(t, v, exp)
+	case *ast.Boolean:
+		testBooleanLiteral(t, v.Value, exp)
+	case bool:
+		testBooleanLiteral(t, v, exp)
+	default:
+		t.Errorf("type of want exp not handled. want=%T", want)
+	}
+}
+
+func testInfixExpD(
+	t *testing.T,
+	want *ast.InfixExpression,
+	got any,
+) {
+	// want token unused
+	testInfixExpression(t, want.Left, want.Operator, want.Right, got)
+}
+
+func testInfixExpression(
+	t *testing.T,
+	wleft any,
+	wop string,
+	wright any,
+	got any,
+) {
+	var exp ast.Expression
+	switch v := got.(type) {
+	case ast.Expression:
+		exp = v
+	case *ast.ExpressionStatement:
+		exp = v.Expression
+	default:
+		t.Errorf("type of exp not handled. got=%T", got)
+	}
+	opExp := isType[*ast.InfixExpression](t, exp)
+	testLiteralExpression(t, wleft, opExp.Left)
+	require.Equal(t, wop, opExp.Operator)
+	testLiteralExpression(t, wright, opExp.Right)
+}
+
+func testPrefixExpression(
+	t *testing.T,
+	wop string,
+	wright any,
+	got any,
+) {
+	var exp ast.Expression
+	switch v := got.(type) {
+	case ast.Expression:
+		exp = v
+	case *ast.ExpressionStatement:
+		exp = v.Expression
+	default:
+		t.Errorf("type of exp not handled. got=%T", got)
+	}
+	pexp := isType[*ast.PrefixExpression](t, exp)
+	require.Equal(t, wop, pexp.Operator)
+	testLiteralExpression(t, wright, pexp.Right)
 }
 
 func TestLetStatement(t *testing.T) {
@@ -103,6 +210,7 @@ let foobar = 838383;
 		letStmt := isType[*ast.LetStatement](t, actual)
 		require.Equal(t, w.Name.Value, letStmt.Name.Value)
 		require.Equal(t, w.Name.TokenLiteral(), letStmt.Name.TokenLiteral())
+		// TODO: refactor this, together with return stmt
 	}
 
 	require.Equal(t, want, program.Statements)
@@ -152,6 +260,7 @@ return 993322;
 		actual := program.Statements[i]
 		require.Equal(t, w.TokenLiteral(), actual.TokenLiteral())
 		isType[*ast.ReturnStatement](t, actual)
+		// TODO: need to test more
 	}
 }
 
@@ -176,11 +285,54 @@ func TestIdentifiers(t *testing.T) {
 		w := want[i].(*ast.ExpressionStatement)
 		actual := program.Statements[i]
 		require.Equal(t, w.TokenLiteral(), actual.TokenLiteral())
-		stmt := isType[*ast.ExpressionStatement](t, actual)
-		wident := w.Expression.(*ast.Identifier)
-		ident := isType[*ast.Identifier](t, stmt.Expression)
-		require.Equal(t, wident.Value, ident.Value)
-		require.Equal(t, wident.TokenLiteral(), ident.TokenLiteral())
+		testLiteralExpression(t, w, actual)
+	}
+}
+
+func TestBooleanExpression(t *testing.T) {
+	input := `
+true;
+false;
+`
+
+	p := FromInput(input)
+	program := p.ParseProgram()
+	baseParseCheck(t, p, program, 2)
+
+	want := []ast.Statement{
+		&ast.ExpressionStatement{
+			Token: token.Token{
+				Type:    token.TRUE,
+				Literal: "true",
+			},
+			Expression: &ast.Boolean{
+				Token: token.Token{
+					Type:    token.TRUE,
+					Literal: "true",
+				},
+				Value: true,
+			},
+		},
+		&ast.ExpressionStatement{
+			Token: token.Token{
+				Type:    token.FALSE,
+				Literal: "false",
+			},
+			Expression: &ast.Boolean{
+				Token: token.Token{
+					Type:    token.FALSE,
+					Literal: "false",
+				},
+				Value: false,
+			},
+		},
+	}
+
+	for i := range want {
+		w := want[i].(*ast.ExpressionStatement)
+		actual := program.Statements[i]
+		require.Equal(t, w.TokenLiteral(), actual.TokenLiteral())
+		testLiteralExpression(t, w, actual)
 	}
 }
 
@@ -205,22 +357,20 @@ func TestIntegerLiteralExpression(t *testing.T) {
 		w := want[i].(*ast.ExpressionStatement)
 		actual := program.Statements[i]
 		require.Equal(t, w.TokenLiteral(), actual.TokenLiteral())
-		stmt := isType[*ast.ExpressionStatement](t, actual)
-		wlit := w.Expression.(*ast.IntegerLiteral)
-		lit := isType[*ast.IntegerLiteral](t, stmt.Expression)
-		require.Equal(t, wlit.Value, lit.Value)
-		require.Equal(t, wlit.TokenLiteral(), lit.TokenLiteral())
+		testLiteralExpression(t, w, actual)
 	}
 }
 
 func TestParsingPrefixExpressions(t *testing.T) {
 	prefixTests := []struct {
-		input  string
-		op     string
-		intVal int64
+		input string
+		op    string
+		val   any
 	}{
 		{"!5;", "!", 5},
 		{"-15;", "-", 15},
+		{"!true", "!", true},
+		{"!false", "!", false},
 	}
 
 	for _, tt := range prefixTests {
@@ -228,19 +378,16 @@ func TestParsingPrefixExpressions(t *testing.T) {
 		program := p.ParseProgram()
 		baseParseCheck(t, p, program, 1)
 		actual := program.Statements[0]
-		stmt := isType[*ast.ExpressionStatement](t, actual)
-		exp := isType[*ast.PrefixExpression](t, stmt.Expression)
-		require.Equal(t, tt.op, exp.Operator)
-		testIntegerLiteral(t, exp.Right, tt.intVal)
+		testPrefixExpression(t, tt.op, tt.val, actual)
 	}
 }
 
 func TestParsingInfixExpressions(t *testing.T) {
 	tests := []struct {
 		input    string
-		leftVal  int64
+		leftVal  any
 		op       string
-		rightVal int64
+		rightVal any
 	}{
 		{"5 + 5", 5, "+", 5},
 		{"5 - 5", 5, "-", 5},
@@ -250,6 +397,9 @@ func TestParsingInfixExpressions(t *testing.T) {
 		{"5 < 5", 5, "<", 5},
 		{"5 == 5", 5, "==", 5},
 		{"5 != 5", 5, "!=", 5},
+		{"true == true", true, "==", true},
+		{"true != false", true, "!=", false},
+		{"false == false", false, "==", false},
 	}
 
 	for _, tt := range tests {
@@ -257,11 +407,7 @@ func TestParsingInfixExpressions(t *testing.T) {
 		program := p.ParseProgram()
 		baseParseCheck(t, p, program, 1)
 		actual := program.Statements[0]
-		stmt := isType[*ast.ExpressionStatement](t, actual)
-		exp := isType[*ast.InfixExpression](t, stmt.Expression)
-		require.Equal(t, tt.op, exp.Operator)
-		testIntegerLiteral(t, exp.Left, tt.leftVal)
-		testIntegerLiteral(t, exp.Right, tt.rightVal)
+		testInfixExpression(t, tt.leftVal, tt.op, tt.rightVal, actual)
 	}
 }
 
@@ -273,7 +419,26 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 		{"-a * b", "((-a) * b)"},
 		{"!-a", "(!(-a))"},
 		{"a+b+c", "((a + b) + c)"},
-		// TODO: add remaining test cases p 87
+
+		{"a*b*c", "((a * b) * c)"},
+		{"a*b/c", "((a * b) / c)"},
+		{"a+b/c", "(a + (b / c))"},
+		{"a+b*c+d/e -f", "(((a + (b * c)) + (d / e)) - f)"},
+
+		{"3+4;-5*5", "(3 + 4)((-5) * 5)"},
+		{"5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"},
+		{"5 > 4 != 3 < 4", "((5 > 4) != (3 < 4))"},
+
+		{"3 + 4 * 5 == 3 * 1 + 4 * 5", "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))"},
+		{"true", "true"},
+		{"false", "false"},
+		{"3 > 5 == false", "((3 > 5) == false)"},
+		{"3 < 5 == true", "((3 < 5) == true)"},
+		{"1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"},
+		{"(5 + 5) * 2", "((5 + 5) * 2)"},
+		{"2 / (5 + 5)", "(2 / (5 + 5))"},
+		{"-(5 + 5)", "(-(5 + 5))"},
+		{"!(true == true)", "(!(true == true))"},
 	}
 
 	for _, tt := range tests {
@@ -281,5 +446,99 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 		program := p.ParseProgram()
 		checkParserErrors(t, p)
 		require.Equal(t, tt.want, program.String())
+	}
+}
+
+func TestIfExpression(t *testing.T) {
+	input := `if (x < y) { x }`
+
+	p := FromInput(input)
+	program := p.ParseProgram()
+	baseParseCheck(t, p, program, 1)
+
+	stmt := isType[*ast.ExpressionStatement](t, program.Statements[0])
+	exp := isType[*ast.IfExpression](t, stmt.Expression)
+	testInfixExpression(t, "x", "<", "y", exp.Condition)
+	require.Len(t, exp.Consequence.Statements, 1)
+	cons := isType[*ast.ExpressionStatement](t, exp.Consequence.Statements[0])
+	testLiteralExpression(t, "x", cons.Expression)
+	require.Nil(t, exp.Alternative)
+}
+
+func TestIfElseExpression(t *testing.T) {
+	input := `if (x < y) { x } else { y }`
+
+	p := FromInput(input)
+	program := p.ParseProgram()
+	baseParseCheck(t, p, program, 1)
+
+	stmt := isType[*ast.ExpressionStatement](t, program.Statements[0])
+	exp := isType[*ast.IfExpression](t, stmt.Expression)
+	testInfixExpression(t, "x", "<", "y", exp.Condition)
+	require.Len(t, exp.Consequence.Statements, 1)
+	cons := isType[*ast.ExpressionStatement](t, exp.Consequence.Statements[0])
+	testLiteralExpression(t, "x", cons.Expression)
+	require.Len(t, exp.Alternative.Statements, 1)
+	alt := isType[*ast.ExpressionStatement](t, exp.Alternative.Statements[0])
+	testLiteralExpression(t, "y", alt.Expression)
+}
+
+func TestFunctionLiteralParsing(t *testing.T) {
+	input := `fn(x,y) {x+y;}`
+
+	p := FromInput(input)
+	program := p.ParseProgram()
+	baseParseCheck(t, p, program, 1)
+
+	want := []ast.Statement{
+		&ast.ExpressionStatement{
+			Token: token.Token{Type: token.FUNCTION, Literal: "fn"},
+			Expression: &ast.FunctionLiteral{
+				Token: token.Token{Type: token.FUNCTION, Literal: "fn"},
+				Params: []*ast.Identifier{
+					{Token: token.Token{token.IDENT, "x"}, Value: "x"},
+					{Token: token.Token{token.IDENT, "y"}, Value: "y"},
+				},
+				Body: &ast.BlockStatement{
+					Token: token.Token{token.LBRACE, "{"},
+					Statements: []ast.Statement{
+						&ast.ExpressionStatement{
+							Token: token.Token{token.IDENT, "x"},
+							Expression: &ast.InfixExpression{
+								Token:    token.Token{Type: token.PLUS, Literal: "+"},
+								Operator: "+",
+								Left:     &ast.Identifier{Token: token.Token{token.IDENT, "x"}, Value: "x"},
+								Right:    &ast.Identifier{Token: token.Token{token.IDENT, "y"}, Value: "y"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	require.Equal(t, want[0], program.Statements[0])
+}
+
+func TestFunctionParameterParsing(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []token.Token
+	}{
+		{"fn() {};", []token.Token{}},
+		{"fn(x) {};", []token.Token{token.Ident("x")}},
+		{"fn(x,y,z) {};", []token.Token{token.Ident("x"), token.Ident("y"), token.Ident("z")}},
+	}
+
+	for _, tt := range tests {
+		p := FromInput(tt.input)
+		program := p.ParseProgram()
+		baseParseCheck(t, p, program, 1)
+		stmt := isType[*ast.ExpressionStatement](t, program.Statements[0])
+		fn := isType[*ast.FunctionLiteral](t, stmt.Expression)
+		gotTokens := []token.Token{}
+		for _, p := range fn.Params {
+			gotTokens = append(gotTokens, p.Token)
+		}
+		require.Equal(t, tt.want, gotTokens)
 	}
 }

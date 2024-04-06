@@ -2,6 +2,7 @@ package ast
 
 import (
 	"bytes"
+	"strings"
 
 	"github.com/EmilLaursen/wiig/token"
 )
@@ -66,6 +67,23 @@ func (ls *LetStatement) String() string {
 	return out.String()
 }
 
+type BlockStatement struct {
+	Token      token.Token
+	Statements []Statement
+}
+
+var _ Statement = &BlockStatement{}
+
+func (n *BlockStatement) statementNode()       {}
+func (n *BlockStatement) TokenLiteral() string { return n.Token.Literal }
+func (n *BlockStatement) String() string {
+	var out bytes.Buffer
+	for _, stmt := range n.Statements {
+		out.WriteString(stmt.String())
+	}
+	return out.String()
+}
+
 type Identifier struct {
 	Token token.Token
 	Value string
@@ -89,6 +107,64 @@ var _ Expression = &IntegerLiteral{}
 func (n *IntegerLiteral) expressionNode()      {}
 func (n *IntegerLiteral) TokenLiteral() string { return n.Token.Literal }
 func (n *IntegerLiteral) String() string       { return n.Token.Literal }
+
+type Boolean struct {
+	Token token.Token
+	Value bool
+}
+
+var _ Expression = &Boolean{}
+
+func (n *Boolean) expressionNode()      {}
+func (n *Boolean) TokenLiteral() string { return n.Token.Literal }
+func (n *Boolean) String() string       { return n.Token.Literal }
+
+type IfExpression struct {
+	Token       token.Token
+	Condition   Expression
+	Consequence *BlockStatement
+	Alternative *BlockStatement
+}
+
+var _ Expression = &IfExpression{}
+
+func (n *IfExpression) expressionNode()      {}
+func (n *IfExpression) TokenLiteral() string { return n.Token.Literal }
+func (n *IfExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString("if")
+	out.WriteString(n.Condition.String())
+	out.WriteString(" ")
+	out.WriteString(n.Consequence.String())
+	if n.Alternative != nil {
+		out.WriteString("else ")
+		out.WriteString(n.Alternative.String())
+	}
+	return out.String()
+}
+
+type FunctionLiteral struct {
+	Token  token.Token
+	Params []*Identifier
+	Body   *BlockStatement
+}
+
+var _ Expression = &FunctionLiteral{}
+
+func (n *FunctionLiteral) expressionNode()      {}
+func (n *FunctionLiteral) TokenLiteral() string { return n.Token.Literal }
+func (n *FunctionLiteral) String() string {
+	var out bytes.Buffer
+	params := []string{}
+	for _, p := range n.Params {
+		params = append(params, p.String())
+	}
+	out.WriteString(n.TokenLiteral())
+	out.WriteString("(")
+	out.WriteString(strings.Join(params, ", "))
+	out.WriteString(")")
+	return out.String()
+}
 
 type PrefixExpression struct {
 	Token    token.Token
