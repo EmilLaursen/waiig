@@ -166,6 +166,29 @@ func (n *FunctionLiteral) String() string {
 	return out.String()
 }
 
+type CallExpression struct {
+	Token     token.Token
+	Function  Expression
+	Arguments []Expression
+}
+
+var _ Expression = &CallExpression{}
+
+func (n *CallExpression) expressionNode()      {}
+func (n *CallExpression) TokenLiteral() string { return n.Token.Literal }
+func (n *CallExpression) String() string {
+	var out bytes.Buffer
+	args := []string{}
+	for _, p := range n.Arguments {
+		args = append(args, p.String())
+	}
+	out.WriteString(n.Function.String())
+	out.WriteString("(")
+	out.WriteString(strings.Join(args, ", "))
+	out.WriteString(")")
+	return out.String()
+}
+
 type PrefixExpression struct {
 	Token    token.Token
 	Operator string

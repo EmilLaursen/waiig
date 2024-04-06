@@ -12,6 +12,7 @@ import (
 )
 
 func checkParserErrors(t *testing.T, p *Parser) {
+	t.Helper()
 	errors := p.Errors()
 	if len(errors) == 0 {
 		return
@@ -30,12 +31,14 @@ func baseParseCheck(
 	program *ast.Program,
 	numStatements int,
 ) {
+	t.Helper()
 	checkParserErrors(t, p)
 	require.NotNil(t, program)
 	require.Equal(t, numStatements, len(program.Statements), "statements: %+v", program.Statements)
 }
 
 func isType[T any](t *testing.T, obj any) T {
+	t.Helper()
 	var x T
 	r, ok := obj.(T)
 	require.True(t, ok, "type of obj=%+v is not type=%T but %s", obj, x, reflect.TypeOf(obj))
@@ -43,12 +46,14 @@ func isType[T any](t *testing.T, obj any) T {
 }
 
 func testIntegerLiteral(t *testing.T, exp ast.Expression, val int64) {
+	t.Helper()
 	intLit := isType[*ast.IntegerLiteral](t, exp)
 	require.Equal(t, val, intLit.Value)
 	require.Equal(t, fmt.Sprintf("%d", val), intLit.TokenLiteral())
 }
 
 func testIdentifier(t *testing.T, want ast.Expression, got ast.Expression) {
+	t.Helper()
 	wident := isType[*ast.Identifier](t, want)
 	ident := isType[*ast.Identifier](t, got)
 	require.Equal(t, wident.Value, ident.Value)
@@ -56,9 +61,23 @@ func testIdentifier(t *testing.T, want ast.Expression, got ast.Expression) {
 }
 
 func testBooleanLiteral(t *testing.T, want bool, got ast.Expression) {
+	t.Helper()
 	bexp := isType[*ast.Boolean](t, got)
 	require.Equal(t, want, bexp.Value)
 	require.Equal(t, fmt.Sprintf("%t", want), bexp.TokenLiteral())
+}
+
+func testLetStatement(t *testing.T, wantID, wantVal, got any) {
+	t.Helper()
+	lexp := isType[*ast.LetStatement](t, got)
+	testLiteralExpression(t, wantID, lexp.Name)
+	testLiteralExpression(t, wantVal, lexp.Value)
+}
+
+func testReturnStatement(t *testing.T, wantVal, got any) {
+	t.Helper()
+	exp := isType[*ast.ReturnStatement](t, got)
+	testLiteralExpression(t, wantVal, exp)
 }
 
 func testLiteralExpression(
@@ -66,14 +85,17 @@ func testLiteralExpression(
 	want any,
 	got any,
 ) {
+	t.Helper()
 	var exp ast.Expression
 	switch gv := got.(type) {
 	case *ast.ExpressionStatement:
 		exp = gv.Expression
 	case ast.Expression:
 		exp = gv
+	case *ast.ReturnStatement:
+		exp = gv.ReturnValue
 	default:
-		t.Errorf("type of exp not handled. got=%T", got)
+		t.Errorf("type of exp not handled. got=%+v type=%T", got, got)
 	}
 
 	switch v := want.(type) {
@@ -109,6 +131,7 @@ func testInfixExpD(
 	want *ast.InfixExpression,
 	got any,
 ) {
+	t.Helper()
 	// want token unused
 	testInfixExpression(t, want.Left, want.Operator, want.Right, got)
 }
@@ -120,6 +143,7 @@ func testInfixExpression(
 	wright any,
 	got any,
 ) {
+	t.Helper()
 	var exp ast.Expression
 	switch v := got.(type) {
 	case ast.Expression:
@@ -155,6 +179,44 @@ func testPrefixExpression(
 	testLiteralExpression(t, wright, pexp.Right)
 }
 
+func TestLetStatements(t *testing.T) {
+	tests := []struct {
+		input   string
+		wantID  string
+		wantVal any
+	}{
+		{"let x = 5;", "x", 5},
+		{"let y = true;", "y", true},
+		{"let foobar = y;", "foobar", "y"},
+	}
+
+	for _, tt := range tests {
+		p := FromInput(tt.input)
+		program := p.ParseProgram()
+		baseParseCheck(t, p, program, 1)
+		testLetStatement(t, tt.wantID, tt.wantVal, program.Statements[0])
+	}
+}
+
+func TestReturnStatements(t *testing.T) {
+	tests := []struct {
+		input string
+		want  any
+	}{
+		{"return 5;", 5},
+		{"return 10", 10},
+		{"return true;", true},
+		{"return false;", false},
+	}
+
+	for _, tt := range tests {
+		p := FromInput(tt.input)
+		program := p.ParseProgram()
+		baseParseCheck(t, p, program, 1)
+		testReturnStatement(t, tt.want, program.Statements[0])
+	}
+}
+
 func TestLetStatement(t *testing.T) {
 	input := `
 let x = 5;
@@ -169,23 +231,20 @@ let foobar = 838383;
 
 	want := []ast.Statement{
 		&ast.LetStatement{
-			Token: token.Token{
-				Type:    token.LET,
-				Literal: "let",
+			Token: token.Token{Type: token.LET, Literal: "let"},
+			Name:  &ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: "x"}, Value: "x"},
+			Value: &ast.IntegerLiteral{
+				Token: token.Token{token.INT, "5"},
+				Value: 5,
 			},
-			Name: &ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: "x"}, Value: "x"},
 		},
 
 		&ast.LetStatement{
-			Token: token.Token{
-				Type:    token.LET,
-				Literal: "let",
-			},
-			Name: &ast.Identifier{
-				Token: token.Token{
-					Type:    token.IDENT,
-					Literal: "y",
-				}, Value: "y",
+			Token: token.Token{Type: token.LET, Literal: "let"},
+			Name:  &ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: "y"}, Value: "y"},
+			Value: &ast.IntegerLiteral{
+				Token: token.Token{token.INT, "10"},
+				Value: 10,
 			},
 		},
 
@@ -199,6 +258,10 @@ let foobar = 838383;
 					Type:    token.IDENT,
 					Literal: "foobar",
 				}, Value: "foobar",
+			},
+			Value: &ast.IntegerLiteral{
+				Token: token.Token{token.INT, "838383"},
+				Value: 838383,
 			},
 		},
 	}
@@ -439,6 +502,9 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 		{"2 / (5 + 5)", "(2 / (5 + 5))"},
 		{"-(5 + 5)", "(-(5 + 5))"},
 		{"!(true == true)", "(!(true == true))"},
+		{"a + add(b * c) + d", "((a + add((b * c))) + d)"},
+		{"add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))", "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))"},
+		{"add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))"},
 	}
 
 	for _, tt := range tests {
@@ -541,4 +607,23 @@ func TestFunctionParameterParsing(t *testing.T) {
 		}
 		require.Equal(t, tt.want, gotTokens)
 	}
+}
+
+func TestCallExpressionParsing(t *testing.T) {
+	input := "add(1, 2*3,4+5);"
+
+	p := FromInput(input)
+	program := p.ParseProgram()
+	baseParseCheck(t, p, program, 1)
+
+	stmt := isType[*ast.ExpressionStatement](t, program.Statements[0])
+	cexp := isType[*ast.CallExpression](t, stmt.Expression)
+
+	testLiteralExpression(t, "add", cexp.Function)
+
+	require.Len(t, cexp.Arguments, 3)
+
+	testLiteralExpression(t, 1, cexp.Arguments[0])
+	testInfixExpression(t, 2, "*", 3, cexp.Arguments[1])
+	testInfixExpression(t, 4, "+", 5, cexp.Arguments[2])
 }
