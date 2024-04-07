@@ -2,11 +2,11 @@ package parser
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/EmilLaursen/wiig/ast"
 	"github.com/EmilLaursen/wiig/lexer"
+	"github.com/EmilLaursen/wiig/testutils"
 	"github.com/EmilLaursen/wiig/token"
 	"github.com/stretchr/testify/require"
 )
@@ -37,46 +37,38 @@ func baseParseCheck(
 	require.Equal(t, numStatements, len(program.Statements), "statements: %+v", program.Statements)
 }
 
-func isType[T any](t *testing.T, obj any) T {
-	t.Helper()
-	var x T
-	r, ok := obj.(T)
-	require.True(t, ok, "type of obj=%+v is not type=%T but %s", obj, x, reflect.TypeOf(obj))
-	return r
-}
-
 func testIntegerLiteral(t *testing.T, exp ast.Expression, val int64) {
 	t.Helper()
-	intLit := isType[*ast.IntegerLiteral](t, exp)
+	intLit := testutils.IsType[*ast.IntegerLiteral](t, exp)
 	require.Equal(t, val, intLit.Value)
 	require.Equal(t, fmt.Sprintf("%d", val), intLit.TokenLiteral())
 }
 
 func testIdentifier(t *testing.T, want ast.Expression, got ast.Expression) {
 	t.Helper()
-	wident := isType[*ast.Identifier](t, want)
-	ident := isType[*ast.Identifier](t, got)
+	wident := testutils.IsType[*ast.Identifier](t, want)
+	ident := testutils.IsType[*ast.Identifier](t, got)
 	require.Equal(t, wident.Value, ident.Value)
 	require.Equal(t, wident.TokenLiteral(), ident.TokenLiteral())
 }
 
 func testBooleanLiteral(t *testing.T, want bool, got ast.Expression) {
 	t.Helper()
-	bexp := isType[*ast.Boolean](t, got)
+	bexp := testutils.IsType[*ast.Boolean](t, got)
 	require.Equal(t, want, bexp.Value)
 	require.Equal(t, fmt.Sprintf("%t", want), bexp.TokenLiteral())
 }
 
 func testLetStatement(t *testing.T, wantID, wantVal, got any) {
 	t.Helper()
-	lexp := isType[*ast.LetStatement](t, got)
+	lexp := testutils.IsType[*ast.LetStatement](t, got)
 	testLiteralExpression(t, wantID, lexp.Name)
 	testLiteralExpression(t, wantVal, lexp.Value)
 }
 
 func testReturnStatement(t *testing.T, wantVal, got any) {
 	t.Helper()
-	exp := isType[*ast.ReturnStatement](t, got)
+	exp := testutils.IsType[*ast.ReturnStatement](t, got)
 	testLiteralExpression(t, wantVal, exp)
 }
 
@@ -153,7 +145,7 @@ func testInfixExpression(
 	default:
 		t.Errorf("type of exp not handled. got=%T", got)
 	}
-	opExp := isType[*ast.InfixExpression](t, exp)
+	opExp := testutils.IsType[*ast.InfixExpression](t, exp)
 	testLiteralExpression(t, wleft, opExp.Left)
 	require.Equal(t, wop, opExp.Operator)
 	testLiteralExpression(t, wright, opExp.Right)
@@ -174,7 +166,7 @@ func testPrefixExpression(
 	default:
 		t.Errorf("type of exp not handled. got=%T", got)
 	}
-	pexp := isType[*ast.PrefixExpression](t, exp)
+	pexp := testutils.IsType[*ast.PrefixExpression](t, exp)
 	require.Equal(t, wop, pexp.Operator)
 	testLiteralExpression(t, wright, pexp.Right)
 }
@@ -270,7 +262,7 @@ let foobar = 838383;
 		w := want[i].(*ast.LetStatement)
 		actual := program.Statements[i]
 		require.Equal(t, w.TokenLiteral(), actual.TokenLiteral())
-		letStmt := isType[*ast.LetStatement](t, actual)
+		letStmt := testutils.IsType[*ast.LetStatement](t, actual)
 		require.Equal(t, w.Name.Value, letStmt.Name.Value)
 		require.Equal(t, w.Name.TokenLiteral(), letStmt.Name.TokenLiteral())
 		// TODO: refactor this, together with return stmt
@@ -322,7 +314,7 @@ return 993322;
 		w := want[i].(*ast.ReturnStatement)
 		actual := program.Statements[i]
 		require.Equal(t, w.TokenLiteral(), actual.TokenLiteral())
-		isType[*ast.ReturnStatement](t, actual)
+		testutils.IsType[*ast.ReturnStatement](t, actual)
 		// TODO: need to test more
 	}
 }
@@ -522,11 +514,11 @@ func TestIfExpression(t *testing.T) {
 	program := p.ParseProgram()
 	baseParseCheck(t, p, program, 1)
 
-	stmt := isType[*ast.ExpressionStatement](t, program.Statements[0])
-	exp := isType[*ast.IfExpression](t, stmt.Expression)
+	stmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[0])
+	exp := testutils.IsType[*ast.IfExpression](t, stmt.Expression)
 	testInfixExpression(t, "x", "<", "y", exp.Condition)
 	require.Len(t, exp.Consequence.Statements, 1)
-	cons := isType[*ast.ExpressionStatement](t, exp.Consequence.Statements[0])
+	cons := testutils.IsType[*ast.ExpressionStatement](t, exp.Consequence.Statements[0])
 	testLiteralExpression(t, "x", cons.Expression)
 	require.Nil(t, exp.Alternative)
 }
@@ -538,14 +530,14 @@ func TestIfElseExpression(t *testing.T) {
 	program := p.ParseProgram()
 	baseParseCheck(t, p, program, 1)
 
-	stmt := isType[*ast.ExpressionStatement](t, program.Statements[0])
-	exp := isType[*ast.IfExpression](t, stmt.Expression)
+	stmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[0])
+	exp := testutils.IsType[*ast.IfExpression](t, stmt.Expression)
 	testInfixExpression(t, "x", "<", "y", exp.Condition)
 	require.Len(t, exp.Consequence.Statements, 1)
-	cons := isType[*ast.ExpressionStatement](t, exp.Consequence.Statements[0])
+	cons := testutils.IsType[*ast.ExpressionStatement](t, exp.Consequence.Statements[0])
 	testLiteralExpression(t, "x", cons.Expression)
 	require.Len(t, exp.Alternative.Statements, 1)
-	alt := isType[*ast.ExpressionStatement](t, exp.Alternative.Statements[0])
+	alt := testutils.IsType[*ast.ExpressionStatement](t, exp.Alternative.Statements[0])
 	testLiteralExpression(t, "y", alt.Expression)
 }
 
@@ -599,8 +591,8 @@ func TestFunctionParameterParsing(t *testing.T) {
 		p := FromInput(tt.input)
 		program := p.ParseProgram()
 		baseParseCheck(t, p, program, 1)
-		stmt := isType[*ast.ExpressionStatement](t, program.Statements[0])
-		fn := isType[*ast.FunctionLiteral](t, stmt.Expression)
+		stmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[0])
+		fn := testutils.IsType[*ast.FunctionLiteral](t, stmt.Expression)
 		gotTokens := []token.Token{}
 		for _, p := range fn.Params {
 			gotTokens = append(gotTokens, p.Token)
@@ -616,8 +608,8 @@ func TestCallExpressionParsing(t *testing.T) {
 	program := p.ParseProgram()
 	baseParseCheck(t, p, program, 1)
 
-	stmt := isType[*ast.ExpressionStatement](t, program.Statements[0])
-	cexp := isType[*ast.CallExpression](t, stmt.Expression)
+	stmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[0])
+	cexp := testutils.IsType[*ast.CallExpression](t, stmt.Expression)
 
 	testLiteralExpression(t, "add", cexp.Function)
 

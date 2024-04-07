@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/EmilLaursen/wiig/eval"
 	"github.com/EmilLaursen/wiig/parser"
 )
 
@@ -28,8 +29,12 @@ func Start(in io.Reader, out io.Writer) {
 			printParserErrors(out, p.Errors())
 			continue
 		}
-		io.WriteString(out, program.String())
-		io.WriteString(out, "\n")
+
+		val := eval.Eval(program)
+		if val != nil {
+			io.WriteString(out, val.Inspect())
+			io.WriteString(out, "\n")
+		}
 	}
 }
 
