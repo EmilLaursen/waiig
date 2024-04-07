@@ -42,6 +42,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 		return FALSE
 
+	case *ast.StringLiteral:
+		return &object.String{Value: node.Value}
+
 	case *ast.ReturnStatement:
 		v := Eval(node.ReturnValue, env)
 		if isError(v) {
@@ -104,17 +107,20 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 }
 
 func applyfunction(fn object.Object, args []object.Object) object.Object {
-	function, ok := fn.(*object.Function)
-	if !ok {
+	switch fn := fn.(type) {
+	case *object.Function:
+		scope := object.NewScope(fn.Env)
+		for i, p := range fn.Params {
+			scope.Set(p.Value, args[i])
+		}
+		ret := Eval(fn.Body, scope)
+		return unwrapReturn(ret)
+
+	case *object.Builtin:
+		return fn.Fn(args...)
+	default:
 		return newErr("not a function: %s", fn.Type())
 	}
-
-	scope := object.NewScope(function.Env)
-	for i, p := range function.Params {
-		scope.Set(p.Value, args[i])
-	}
-	ret := Eval(function.Body, scope)
-	return unwrapReturn(ret)
 }
 
 func unwrapReturn(o object.Object) object.Object {
@@ -215,6 +221,9 @@ func evalInfixExp(op string, left object.Object, right object.Object) object.Obj
 	case left.Type() == object.BOOLEAN_OBJ && right.Type() == object.BOOLEAN_OBJ:
 		return evalBoolInfixExp(op, left, right)
 
+	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
+		return evalStringInfixExp(op, left, right)
+
 	default:
 		return newErr("unknown operator: %s %s %s", left.Type(), op, right.Type())
 	}
@@ -260,6 +269,15 @@ func evalBoolInfixExp(op string, left object.Object, right object.Object) object
 	}
 }
 
+func evalStringInfixExp(op string, left object.Object, right object.Object) object.Object {
+	if op != "+" {
+		return newErr("unknown operator: %s %s %s", left.Type(), op, right.Type())
+	}
+	l := left.(*object.String).Value
+	r := right.(*object.String).Value
+	return &object.String{Value: l + r}
+}
+
 func evalMinusOpExp(right object.Object) object.Object {
 	if right.Type() != object.INTEGER_OBJ {
 		return newErr("unknown operator: -%s", right.Type())
@@ -283,10 +301,15 @@ func evalBangOperatorExp(right object.Object) object.Object {
 
 func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
 	v, ok := env.Get(node.Value)
-	if !ok {
-		return newErr("identifier not found: %s", node.Value)
+	if ok {
+		return v
 	}
-	return v
+
+	if builtin, ok := builtins[node.Value]; ok {
+		return builtin
+	}
+
+	return newErr("identifier not found: %s", node.Value)
 }
 
 func nativeBoolToBoolObj(b bool) object.Object {

@@ -8,7 +8,10 @@ import (
 	"github.com/EmilLaursen/wiig/ast"
 )
 
-type ObjectType string
+type (
+	ObjectType      string
+	BuiltinFunction func(args ...Object) Object
+)
 
 const (
 	INTEGER_OBJ      ObjectType = "INTEGER"
@@ -17,6 +20,8 @@ const (
 	RETURN_VALUE_OBJ            = "RETURN_VALUE"
 	ERROR_OBJ                   = "ERROR"
 	FUNCTION_OBJ                = "FUNCTION"
+	STRING_OBJ                  = "STRING"
+	BUILTIN_OBJ                 = "BUILTIN"
 )
 
 type Object interface {
@@ -38,6 +43,13 @@ type Boolean struct {
 func (i *Boolean) Inspect() string  { return fmt.Sprintf("%t", i.Value) }
 func (i *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
 
+type String struct {
+	Value string
+}
+
+func (i *String) Inspect() string  { return i.Value }
+func (i *String) Type() ObjectType { return STRING_OBJ }
+
 type Null struct{}
 
 func (i *Null) Inspect() string  { return "null" }
@@ -49,6 +61,13 @@ type ReturnValue struct {
 
 func (i *ReturnValue) Inspect() string  { return i.Value.Inspect() }
 func (i *ReturnValue) Type() ObjectType { return RETURN_VALUE_OBJ }
+
+type Builtin struct {
+	Fn BuiltinFunction
+}
+
+func (i *Builtin) Inspect() string  { return "builtin function" }
+func (i *Builtin) Type() ObjectType { return BUILTIN_OBJ }
 
 type Error struct {
 	Msg string

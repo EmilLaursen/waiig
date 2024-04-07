@@ -4,15 +4,16 @@ type TokenType string
 
 type Token struct {
 	Type    TokenType
-	Literal string // int/byte would be faster
+	Literal string
 }
 
 const (
 	ILLEGAL TokenType = "ILLEGAL"
 	EOF               = "EOF"
 
-	IDENT = "IDENT"
-	INT   = "INT"
+	IDENT  = "IDENT"
+	INT    = "INT"
+	STRING = "STRING"
 
 	// OPERATORS
 	ASSIGN   = "="
@@ -64,6 +65,13 @@ func Ident(ident string) Token {
 
 func Num(num string) Token {
 	return Token{Type: INT, Literal: num}
+}
+
+func Str(str string) Token {
+	return Token{
+		Type:    STRING,
+		Literal: str,
+	}
 }
 
 func Ch(ch string) Token {

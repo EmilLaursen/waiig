@@ -65,9 +65,12 @@ func (l *Lexer) NextToken() token.Token {
 	// case 0:
 	// 	tok = token.Token{Type: token.EOF, Literal: ""}
 	default:
-		if isLetter(l.ch) {
+		switch {
+		case l.ch == '"':
+			tok = token.Str(l.readString())
+		case isLetter(l.ch):
 			return token.Ident(l.readIdentifier())
-		} else if isDigit(l.ch) {
+		case isDigit(l.ch):
 			return token.Num(l.readNumber())
 		}
 		// tok = token.Token{Type: token.ILLEGAL, Literal: string(l.ch)}
@@ -85,7 +88,7 @@ func (l *Lexer) peekChar() byte {
 
 func (l *Lexer) readWhile(predicate func(ch byte) bool) string {
 	pos := l.position
-	for predicate(l.ch) {
+	for predicate(l.ch) && l.ch != 0 {
 		l.readChar()
 	}
 	return l.input[pos:l.position]
@@ -97,6 +100,18 @@ func (l *Lexer) readNumber() string {
 
 func (l *Lexer) readIdentifier() string {
 	return l.readWhile(isLetter)
+}
+
+func (l *Lexer) readString() string {
+	// TODO: handle escaping, " \n \t \r etc
+	pos := l.position + 1
+	for {
+		l.readChar()
+		if l.ch == '"' || l.ch == 0 {
+			break
+		}
+	}
+	return l.input[pos:l.position]
 }
 
 func (l *Lexer) skipWhitespace() {

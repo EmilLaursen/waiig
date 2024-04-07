@@ -619,3 +619,16 @@ func TestCallExpressionParsing(t *testing.T) {
 	testInfixExpression(t, 2, "*", 3, cexp.Arguments[1])
 	testInfixExpression(t, 4, "+", 5, cexp.Arguments[2])
 }
+
+func TestStringLiteralExp(t *testing.T) {
+	input := `"hello world";`
+	want := "hello world"
+
+	p := FromInput(input)
+	program := p.ParseProgram()
+	baseParseCheck(t, p, program, 1)
+
+	stmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[0])
+	str := testutils.IsType[*ast.StringLiteral](t, stmt.Expression)
+	require.Equal(t, want, str.Value)
+}

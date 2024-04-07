@@ -128,6 +128,14 @@ func TestNextToken(t *testing.T) {
 		{token.NOT_EQ, "!="},
 		token.Num("9"),
 		token.Ch(";"),
+		{token.STRING, "foobar"},
+		token.Ch(";"),
+		{token.STRING, "trololo"},
+		token.Ch(";"),
+		{token.STRING, "foo bar"},
+		token.Ch(";"),
+		{token.STRING, ""},
+		token.Ch(";"),
 		{token.EOF, ""},
 	}
 
@@ -150,6 +158,10 @@ if (0005 < 0010) {
 
 10 == 10;
 10 != 9;
+"foobar";
+"trololo";
+"foo bar";
+"";
 `
 
 	l := New(input)
@@ -164,12 +176,5 @@ if (0005 < 0010) {
 		end := min(n, l.position+window)
 		require.Equal(t, tc, tok,
 			fmt.Sprintf("pos=%d want=%+v window=%+v\n", i, tc, l.input[start:end]))
-
-		// t.Run(fmt.Sprintf("pos=%d want=%+v\n", i, tc), func(t *testing.T) {
-		// 	tok := l.NextToken()
-		// 	start := min(n, l.position)
-		// 	end := min(n, l.position+window)
-		// 	require.Equal(t, tc, tok, l.input[start:end])
-		// })
 	}
 }
