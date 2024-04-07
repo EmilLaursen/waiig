@@ -256,6 +256,8 @@ type ExpressionStatement struct {
 	Expression Expression
 }
 
+var _ Statement = &ExpressionStatement{}
+
 func (es *ExpressionStatement) statementNode()       {}
 func (es *ExpressionStatement) TokenLiteral() string { return es.Token.Literal }
 func (es *ExpressionStatement) String() string {

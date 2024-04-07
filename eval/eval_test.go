@@ -13,13 +13,14 @@ import (
 func testEval(input string) object.Object {
 	p := parser.FromInput(input)
 	program := p.ParseProgram()
-	return Eval(program)
+	env := object.NewEnv()
+	return Eval(program, env)
 }
 
-func testIntegerObj(t *testing.T, want int64, got object.Object) {
+func testIntegerObj(t *testing.T, want int64, got object.Object, msgAndArgs ...any) {
 	t.Helper()
 	o := testutils.IsType[*object.Integer](t, got)
-	require.Equal(t, want, o.Value)
+	require.Equal(t, want, o.Value, msgAndArgs...)
 }
 
 func testBooleanObj(t *testing.T, want bool, got object.Object) {
@@ -95,7 +96,6 @@ func TestEvalBooleanExp(t *testing.T) {
 }
 
 func TestIfElseExp(t *testing.T) {
-	// TODO: add me
 	tests := []struct {
 		input string
 		want  any
@@ -121,4 +121,184 @@ func TestIfElseExp(t *testing.T) {
 			t.Errorf("unexpected want: %+v, type=%T", tt.want, tt.want)
 		}
 	}
+}
+
+func TestReturnStatements(t *testing.T) {
+	tests := []struct {
+		input string
+		want  any
+	}{
+		{"return 10;", 10},
+		{"return 10; 9;", 10},
+		{"return 2 * 5; 9;", 10},
+		{"9; return 2 * 5; 9;", 10},
+		{"if (10 > 1) { return 10; }", 10},
+		{
+			`
+		if (10 > 1) {
+		  if (10 > 1) {
+		    return 10;
+		  }
+
+		  return 1;
+		}
+		`, 10,
+		},
+		// 		{
+		// 			`
+		// let f = fn(x) {
+		//   return x;
+		//   x + 10;
+		// };
+		// f(10);`,
+		// 			10,
+		// 		},
+		// 		{
+		// 			`
+		// let f = fn(x) {
+		//    let result = x + 10;
+		//    return result;
+		//    return 10;
+		// };
+		// f(10);`,
+		// 			20,
+		// 		},
+	}
+
+	for i, tt := range tests {
+		got := testEval(tt.input)
+		var msg string
+		if got != nil {
+			msg = fmt.Sprintf("case %d, input=%s, got=%s", i, tt.input, got.Inspect())
+		}
+		switch w := tt.want.(type) {
+		case int:
+			testIntegerObj(t, int64(w), got, msg)
+		case nil:
+			require.Equal(t, NULL, got, msg)
+		default:
+			t.Errorf("unexpected want: %+v, type=%T", tt.want, tt.want)
+		}
+	}
+}
+
+func TestEvalErrorHandling(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{
+			"5 + true;",
+			"type mismatch: INTEGER + BOOLEAN",
+		},
+		{
+			"5 + true; 5;",
+			"type mismatch: INTEGER + BOOLEAN",
+		},
+		{
+			"-true",
+			"unknown operator: -BOOLEAN",
+		},
+		{
+			"true + false;",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		// {
+		// 	"true + false + true + false;",
+		// 	"unknown operator: BOOLEAN + BOOLEAN",
+		// },
+		{
+			"5; true + false; 5",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			"if (10 > 1) { true + false; }",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			`
+if (10 > 1) {
+  if (10 > 1) {
+    return true + false;
+  }
+
+  return 1;
+}
+`,
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			"foobar",
+			"identifier not found: foobar",
+		},
+	}
+
+	for i, tt := range tests {
+		got := testEval(tt.input)
+		var gotmsg string
+		if got != nil {
+			gotmsg = got.Inspect()
+		}
+		msg := fmt.Sprintf("case %d, input=%s, got=%s", i, tt.input, gotmsg)
+		erro := testutils.IsType[*object.Error](t, got, msg)
+		require.Equal(t, tt.want, erro.Msg, msg)
+	}
+}
+
+func TestLetStatements(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64
+	}{
+		{"let a = 5; a;", 5},
+		{"let a = 5 * 5; a;", 25},
+		{"let a = 5; let b = a; b;", 5},
+		{"let a = 5; let b = a; let c = a + b + 5; c;", 15},
+	}
+
+	for _, tt := range tests {
+		testIntegerObj(t, tt.expected, testEval(tt.input))
+	}
+}
+
+func TestFunctionObject(t *testing.T) {
+	input := `fn(x) {x + 2; };`
+
+	wantBody := "(x + 2)"
+
+	o := testEval(input)
+	fn := testutils.IsType[*object.Function](t, o)
+	require.Len(t, fn.Params, 1)
+	require.Equal(t, fn.Params[0].String(), "x")
+	require.Equal(t, wantBody, fn.Body.String())
+}
+
+func TestFunctionApplication(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64
+	}{
+		{"let identity = fn(x) { x; }; identity(5);", 5},
+		{"let identity = fn(x) { return x; }; identity(5);", 5},
+		{"let double = fn(x) { x * 2; }; double(5);", 10},
+		{"let add = fn(x, y) { x + y; }; add(5, 5);", 10},
+		{"let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20},
+		{"fn(x) { x; }(5)", 5},
+	}
+
+	for _, tt := range tests {
+		testIntegerObj(t, tt.expected, testEval(tt.input))
+	}
+}
+
+func TestClosures(t *testing.T) {
+	input := `
+let newAdder = fn(x) {
+   fn(y) { x + y;}
+};
+
+let addTwo = newAdder(2);
+addTwo(2);
+`
+	testIntegerObj(t, 4, testEval(input))
 }
