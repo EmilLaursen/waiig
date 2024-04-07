@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/EmilLaursen/wiig/object"
@@ -90,5 +91,34 @@ func TestEvalBooleanExp(t *testing.T) {
 	for _, tt := range tests {
 		got := testEval(tt.input)
 		testBooleanObj(t, tt.want, got)
+	}
+}
+
+func TestIfElseExp(t *testing.T) {
+	// TODO: add me
+	tests := []struct {
+		input string
+		want  any
+	}{
+		{"if (true) { 10 }", 10},
+		{"if (false) { 10 }", nil},
+		{"if (1) { 10 }", 10},
+		{"if (1 < 2) { 10 }", 10},
+		{"if (1 > 2) { 10 }", nil},
+		{"if (1 > 2) { 10 } else { 20 }", 20},
+		{"if (1 < 2) { 10 } else { 20 }", 10},
+	}
+
+	for i, tt := range tests {
+		got := testEval(tt.input)
+		msg := fmt.Sprintf("case %d, input=%s, got=%s", i, tt.input, got.Inspect())
+		switch w := tt.want.(type) {
+		case int:
+			testIntegerObj(t, int64(w), got)
+		case nil:
+			require.Equal(t, NULL, got, msg)
+		default:
+			t.Errorf("unexpected want: %+v, type=%T", tt.want, tt.want)
+		}
 	}
 }
