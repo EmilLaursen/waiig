@@ -376,8 +376,8 @@ func TestArrayLiterals(t *testing.T) {
 
 func TestArrayIndexExpressions(t *testing.T) {
 	tests := []struct {
-		input    string
-		expected interface{}
+		input string
+		want  any
 	}{
 		{
 			"[1, 2, 3][0]",
@@ -439,14 +439,70 @@ func TestArrayIndexExpressions(t *testing.T) {
 			"[1, 2, 3][-1]",
 			3,
 		},
+		{
+			"[1, 2, 3][:-1]",
+			[]int64{1, 2},
+		},
+		{
+			"[1, 2, 3][1:2]",
+			[]int64{2},
+		},
+		{
+			"[1, 2, 3][:]",
+			[]int64{1, 2, 3},
+		},
+		{
+			"[1, 2, 3][1:]",
+			[]int64{2, 3},
+		},
+		{
+			`[1, 2, 3,4,5,6,7,8,9,10][-6:-1]`,
+			[]int64{5, 6, 7, 8, 9},
+		},
+		{
+			`[1, 2, 3][-1:]`,
+			[]int64{3},
+		},
+		{
+			`[1, 2, 3][0:]`,
+			[]int64{1, 2, 3},
+		},
+		{
+			`[1, 2, 3][:0]`,
+			[]int64{},
+		},
+		{
+			`[1, 2, 3][0:0]`,
+			[]int64{},
+		},
+		{
+			`[1, 2, 3][-100:-100]`,
+			[]int64{},
+		},
+		{
+			`[1, 2, 3][88:88]`,
+			[]int64{},
+		},
+		{
+			"let myArray = [1, 2, 3]; let i = myArray[-1:]; i[0]",
+			3,
+		},
 	}
 
 	for i, tt := range tests {
 		got := testEval(tt.input)
-		msg := fmt.Sprintf("case: %d input=%s want=%+v", i, tt.input, tt.expected)
-		switch i := tt.expected.(type) {
+		msg := fmt.Sprintf("case: %d input=%s want=%+v", i, tt.input, tt.want)
+		switch w := tt.want.(type) {
 		case int:
-			testIntegerObj(t, int64(i), got, msg)
+			testIntegerObj(t, int64(w), got, msg)
+		case []int64:
+			arr := testutils.IsType[*object.Array](t, got)
+			gots := []int64{}
+			for idx, o := range arr.Elems {
+				ii := testutils.IsType[*object.Integer](t, o, "case %d: arr.Elems[%d] is not integer", i, idx)
+				gots = append(gots, ii.Value)
+			}
+			require.Equal(t, w, gots, msg)
 		default:
 			require.Equal(t, NULL, got, msg)
 		}

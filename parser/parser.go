@@ -84,7 +84,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.LT, p.parseInfixExpression)
 	p.registerInfix(token.GT, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
-	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
+	p.registerInfix(token.LBRACKET, p.parseIndexOrSliceExpression)
 	return p
 }
 
@@ -355,10 +355,40 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	return exp
 }
 
-func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
-	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
-	p.nextToken()
-	exp.Index = p.parseExpression(LOWEST)
+func (p *Parser) parseIndexOrSliceExpression(left ast.Expression) ast.Expression {
+	var exp ast.Expression
+	var fst ast.Expression
+	tok := p.curToken
+
+	if !p.peekTokenIs(token.COLON) {
+		p.nextToken()
+		fst = p.parseExpression(LOWEST)
+	}
+
+	if p.peekTokenIs(token.COLON) {
+		slice := &ast.SliceExpression{
+			Token:     tok,
+			Left:      left,
+			IndexLeft: fst,
+		}
+		p.nextToken()
+
+		if !p.peekTokenIs(token.RBRACKET) {
+			p.nextToken()
+			slice.IndexRight = p.parseExpression(LOWEST)
+		} else {
+			slice.IndexRight = nil
+		}
+
+		exp = slice
+	} else {
+		exp = &ast.IndexExpression{
+			Token: tok,
+			Left:  left,
+			Index: fst,
+		}
+	}
+
 	if !p.expectPeek(token.RBRACKET) {
 		return nil
 	}

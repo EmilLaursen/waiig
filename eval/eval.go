@@ -78,6 +78,31 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 		return evalIndexExpression(left, index)
 
+	case *ast.SliceExpression:
+		left := Eval(node.Left, env)
+		if isError(left) {
+			return left
+		}
+
+		var ileft object.Object = NULL
+		var iright object.Object = NULL
+
+		if node.IndexLeft != nil {
+			ileft = Eval(node.IndexLeft, env)
+			if isError(ileft) {
+				return ileft
+			}
+		}
+
+		if node.IndexRight != nil {
+			iright = Eval(node.IndexRight, env)
+			if isError(iright) {
+				return iright
+			}
+		}
+
+		return evalSliceExpression(left, ileft, iright)
+
 	case *ast.CallExpression:
 		fn := Eval(node.Function, env)
 		if isError(fn) {
@@ -185,6 +210,47 @@ func isTruthy(o object.Object) bool {
 	}
 }
 
+func evalSliceExpression(left, ileft, rleft object.Object) object.Object {
+	ileftGood := object.IsTypeOrNULL(ileft, object.INTEGER_OBJ)
+	irightGood := object.IsTypeOrNULL(rleft, object.INTEGER_OBJ)
+
+	switch {
+	case left.Type() == object.ARRAY_OBJ && ileftGood && irightGood:
+		return evalArraySliceExpression(left, ileft, rleft)
+	default:
+		return newErr("slice operator not supported: %s[%s:%s]", left.Type(), ileft.Type(), rleft.Type())
+	}
+}
+
+func evalArraySliceExpression(array, ileft, iright object.Object) object.Object {
+	arrobj := array.(*object.Array)
+	n := len(arrobj.Elems)
+
+	if n == 0 {
+		return &object.Array{Elems: []object.Object{}}
+	}
+
+	var leftIdx int64
+	var rightIdx int64 = int64(n)
+
+	if ileft.Type() != object.NULL_OBJ {
+		leftIdx = moduloIndex(ileft.(*object.Integer).Value, n)
+	}
+	if iright.Type() != object.NULL_OBJ {
+		rightIdx = moduloIndex(iright.(*object.Integer).Value, n)
+	}
+
+	if leftIdx >= rightIdx {
+		return &object.Array{Elems: []object.Object{}}
+	}
+
+	elems := make([]object.Object, rightIdx-leftIdx)
+	// copying pointers to integers, but these should never change?
+	// TODO: test this
+	copy(elems, arrobj.Elems[leftIdx:rightIdx])
+	return &object.Array{Elems: elems}
+}
+
 func evalIndexExpression(left, index object.Object) object.Object {
 	switch {
 	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
@@ -194,16 +260,26 @@ func evalIndexExpression(left, index object.Object) object.Object {
 	}
 }
 
-func evalArrayIndexExpression(array, index object.Object) object.Object {
-	arrobj := array.(*object.Array)
-	idx := index.(*object.Integer).Value
-	m := int64(len(arrobj.Elems))
+// fits idx inside arrSize similar to python array indexing: x[-1] == x[len(x)-1]
+// Return -1 sentinel on empty array
+func moduloIndex(idx int64, arrSize int) int64 {
+	m := int64(arrSize)
 	if m == 0 {
-		return NULL
+		return -1
 	}
 	d := idx % m
 	if d < 0 {
 		d += m
+	}
+	return d
+}
+
+func evalArrayIndexExpression(array, index object.Object) object.Object {
+	arrobj := array.(*object.Array)
+	idx := index.(*object.Integer).Value
+	d := moduloIndex(idx, len(arrobj.Elems))
+	if d < 0 {
+		return NULL
 	}
 	return arrobj.Elems[d]
 }

@@ -221,6 +221,29 @@ func (n *IndexExpression) String() string {
 	return out.String()
 }
 
+type SliceExpression struct {
+	Token      token.Token
+	Left       Expression
+	IndexLeft  Expression
+	IndexRight Expression
+}
+
+var _ Expression = &SliceExpression{}
+
+func (n *SliceExpression) expressionNode()      {}
+func (n *SliceExpression) TokenLiteral() string { return n.Token.Literal }
+func (n *SliceExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString("(")
+	out.WriteString(n.Left.String())
+	out.WriteString("[")
+	out.WriteString(n.IndexLeft.String())
+	out.WriteString(":")
+	out.WriteString(n.IndexRight.String())
+	out.WriteString("])")
+	return out.String()
+}
+
 type CallExpression struct {
 	Token     token.Token
 	Function  Expression

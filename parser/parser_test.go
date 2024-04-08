@@ -87,6 +87,8 @@ func testLiteralExpression(
 		exp = gv
 	case *ast.ReturnStatement:
 		exp = gv.ReturnValue
+	case nil:
+		exp = nil
 	default:
 		t.Errorf("type of exp not handled. got=%+v type=%T", got, got)
 	}
@@ -114,6 +116,8 @@ func testLiteralExpression(
 		testBooleanLiteral(t, v.Value, exp)
 	case bool:
 		testBooleanLiteral(t, v, exp)
+	case nil:
+		require.Equal(t, v, exp)
 	default:
 		t.Errorf("type of want exp not handled. want=%T", want)
 	}
@@ -664,4 +668,33 @@ func TestParsingIndexExpressions(t *testing.T) {
 
 	testLiteralExpression(t, "myArray", iexp.Left)
 	testInfixExpression(t, 1, "+", 1, iexp.Index)
+}
+
+func TestParsingSliceExpressions(t *testing.T) {
+	tests := []struct {
+		input string
+		ident string
+		left  any
+		right any
+	}{
+		{"arr[1:3]", "arr", 1, 3},
+		{"arr[:3]", "arr", nil, 3},
+		{"arr[1:]", "arr", 1, nil},
+		{"arr[:]", "arr", nil, nil},
+	}
+
+	for i, tt := range tests {
+		p := FromInput(tt.input)
+		program := p.ParseProgram()
+		baseParseCheck(t, p, program, 1)
+		msg := fmt.Sprintf("case=%d input=%s ident=%s got=%+v", i, tt.input, tt.ident, program.Statements[0])
+
+		stmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[0], msg)
+		iexp := testutils.IsType[*ast.SliceExpression](t, stmt.Expression, msg)
+
+		fmt.Println(msg)
+		testLiteralExpression(t, tt.ident, iexp.Left)
+		testLiteralExpression(t, tt.left, iexp.IndexLeft)
+		testLiteralExpression(t, tt.right, iexp.IndexRight)
+	}
 }

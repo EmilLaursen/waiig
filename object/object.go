@@ -25,6 +25,13 @@ const (
 	ARRAY_OBJ        ObjectType = "ARRAY"
 )
 
+func IsTypeOrNULL(one Object, ot ObjectType) bool {
+	if one.Type() == ot {
+		return true
+	}
+	return one.Type() == NULL_OBJ
+}
+
 type Object interface {
 	Type() ObjectType
 	Inspect() string

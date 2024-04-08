@@ -142,6 +142,14 @@ func TestNextToken(t *testing.T) {
 		{token.INT, "2"},
 		{token.RBRACKET, "]"},
 		token.Ch(";"),
+		token.Ident("arr"),
+		{token.LBRACKET, "["},
+		{token.INT, "1"},
+		{token.COLON, ":"},
+		{token.MINUS, "-"},
+		{token.INT, "1"},
+		{token.RBRACKET, "]"},
+		token.Ch(";"),
 		{token.EOF, ""},
 	}
 
@@ -169,6 +177,7 @@ if (0005 < 0010) {
 "foo bar";
 "";
 [1,2];
+arr[1:-1];
 `
 
 	l := New(input)

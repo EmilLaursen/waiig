@@ -74,6 +74,9 @@ func (l *Lexer) NextToken() token.Token {
 		case l.ch == ']':
 			tok.Type = token.RBRACKET
 			tok.Literal = string(l.ch)
+		case l.ch == ':':
+			tok.Type = token.COLON
+			tok.Literal = string(l.ch)
 		case isLetter(l.ch):
 			return token.Ident(l.readIdentifier())
 		case isDigit(l.ch):
