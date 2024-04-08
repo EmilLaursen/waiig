@@ -8,6 +8,7 @@ import (
 	"github.com/EmilLaursen/wiig/lexer"
 	"github.com/EmilLaursen/wiig/testutils"
 	"github.com/EmilLaursen/wiig/token"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -497,6 +498,8 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 		{"a + add(b * c) + d", "((a + add((b * c))) + d)"},
 		{"add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))", "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))"},
 		{"add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))"},
+		{"a * [1, 2, 3, 4][b * c] * d", "((a * ([1, 2, 3, 4][(b * c)])) * d)"},
+		{"add(a * b[2], b[1], 2 * [1, 2][1])", "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))"},
 	}
 
 	for _, tt := range tests {
@@ -631,4 +634,34 @@ func TestStringLiteralExp(t *testing.T) {
 	stmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[0])
 	str := testutils.IsType[*ast.StringLiteral](t, stmt.Expression)
 	require.Equal(t, want, str.Value)
+}
+
+func TestParsingArrayLiteral(t *testing.T) {
+	input := `[1, 2*2,3+3];`
+
+	p := FromInput(input)
+	program := p.ParseProgram()
+	baseParseCheck(t, p, program, 1)
+
+	stmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[0])
+	arr := testutils.IsType[*ast.ArrayLiteral](t, stmt.Expression)
+	assert.Equal(t, 3, len(arr.Elems))
+
+	testIntegerLiteral(t, arr.Elems[0], 1)
+	testInfixExpression(t, 2, "*", 2, arr.Elems[1])
+	testInfixExpression(t, 3, "+", 3, arr.Elems[2])
+}
+
+func TestParsingIndexExpressions(t *testing.T) {
+	input := `myArray[1 + 1];`
+
+	p := FromInput(input)
+	program := p.ParseProgram()
+	baseParseCheck(t, p, program, 1)
+
+	stmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[0])
+	iexp := testutils.IsType[*ast.IndexExpression](t, stmt.Expression)
+
+	testLiteralExpression(t, "myArray", iexp.Left)
+	testInfixExpression(t, 1, "+", 1, iexp.Index)
 }

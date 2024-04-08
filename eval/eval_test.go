@@ -364,3 +364,91 @@ func TestBuiltinFunctions(t *testing.T) {
 		}
 	}
 }
+
+func TestArrayLiterals(t *testing.T) {
+	input := "[1,2*2,3+3]"
+	res := testutils.IsType[*object.Array](t, testEval(input))
+	require.Equal(t, 3, len(res.Elems))
+	testIntegerObj(t, 1, res.Elems[0])
+	testIntegerObj(t, 4, res.Elems[1])
+	testIntegerObj(t, 6, res.Elems[2])
+}
+
+func TestArrayIndexExpressions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{
+			"[1, 2, 3][0]",
+			1,
+		},
+		{
+			"[1, 2, 3][1]",
+			2,
+		},
+		{
+			"[1, 2, 3][2]",
+			3,
+		},
+		{
+			"[1, 2, 3][4]",
+			2,
+		},
+		{
+			"[1, 2, 3][-5]",
+			2,
+		},
+		{
+			"[][0]",
+			nil,
+		},
+		{
+			"[][-1]",
+			nil,
+		},
+		{
+			"[][123]",
+			nil,
+		},
+		{
+			"let i = 0; [1][i];",
+			1,
+		},
+		{
+			"[1, 2, 3][1 + 1];",
+			3,
+		},
+		{
+			"let myArray = [1, 2, 3]; myArray[2];",
+			3,
+		},
+		{
+			"let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+			6,
+		},
+		{
+			"let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]",
+			2,
+		},
+		{
+			"[1, 2, 3][3]",
+			1,
+		},
+		{
+			"[1, 2, 3][-1]",
+			3,
+		},
+	}
+
+	for i, tt := range tests {
+		got := testEval(tt.input)
+		msg := fmt.Sprintf("case: %d input=%s want=%+v", i, tt.input, tt.expected)
+		switch i := tt.expected.(type) {
+		case int:
+			testIntegerObj(t, int64(i), got, msg)
+		default:
+			require.Equal(t, NULL, got, msg)
+		}
+	}
+}

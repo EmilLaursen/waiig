@@ -68,6 +68,12 @@ func (l *Lexer) NextToken() token.Token {
 		switch {
 		case l.ch == '"':
 			tok = token.Str(l.readString())
+		case l.ch == '[':
+			tok.Type = token.LBRACKET
+			tok.Literal = string(l.ch)
+		case l.ch == ']':
+			tok.Type = token.RBRACKET
+			tok.Literal = string(l.ch)
 		case isLetter(l.ch):
 			return token.Ident(l.readIdentifier())
 		case isDigit(l.ch):

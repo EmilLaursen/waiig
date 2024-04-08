@@ -16,12 +16,13 @@ type (
 const (
 	INTEGER_OBJ      ObjectType = "INTEGER"
 	BOOLEAN_OBJ      ObjectType = "BOOLEAN"
-	NULL_OBJ                    = "NULL"
-	RETURN_VALUE_OBJ            = "RETURN_VALUE"
-	ERROR_OBJ                   = "ERROR"
-	FUNCTION_OBJ                = "FUNCTION"
-	STRING_OBJ                  = "STRING"
-	BUILTIN_OBJ                 = "BUILTIN"
+	NULL_OBJ         ObjectType = "NULL"
+	RETURN_VALUE_OBJ ObjectType = "RETURN_VALUE"
+	ERROR_OBJ        ObjectType = "ERROR"
+	FUNCTION_OBJ     ObjectType = "FUNCTION"
+	STRING_OBJ       ObjectType = "STRING"
+	BUILTIN_OBJ      ObjectType = "BUILTIN"
+	ARRAY_OBJ        ObjectType = "ARRAY"
 )
 
 type Object interface {
@@ -61,6 +62,23 @@ type ReturnValue struct {
 
 func (i *ReturnValue) Inspect() string  { return i.Value.Inspect() }
 func (i *ReturnValue) Type() ObjectType { return RETURN_VALUE_OBJ }
+
+type Array struct {
+	Elems []Object
+}
+
+func (i *Array) Type() ObjectType { return ARRAY_OBJ }
+func (i *Array) Inspect() string {
+	var out bytes.Buffer
+	elems := []string{}
+	for _, e := range i.Elems {
+		elems = append(elems, e.Inspect())
+	}
+	out.WriteString("[")
+	out.WriteString(strings.Join(elems, ", "))
+	out.WriteString("]")
+	return out.String()
+}
 
 type Builtin struct {
 	Fn BuiltinFunction

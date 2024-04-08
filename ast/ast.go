@@ -177,6 +177,50 @@ func (n *FunctionLiteral) String() string {
 	return out.String()
 }
 
+type ArrayLiteral struct {
+	Token token.Token
+	Elems []Expression
+}
+
+var _ Expression = &ArrayLiteral{}
+
+func (n *ArrayLiteral) expressionNode()      {}
+func (n *ArrayLiteral) TokenLiteral() string { return n.Token.Literal }
+func (n *ArrayLiteral) String() string {
+	var out bytes.Buffer
+	last := len(n.Elems) - 1
+	out.WriteString("[")
+	if last >= 0 {
+		for _, el := range n.Elems[:last] {
+			out.WriteString(el.String())
+			out.WriteString(", ")
+		}
+		out.WriteString(n.Elems[last].String())
+	}
+	out.WriteString("]")
+	return out.String()
+}
+
+type IndexExpression struct {
+	Token token.Token
+	Left  Expression
+	Index Expression
+}
+
+var _ Expression = &IndexExpression{}
+
+func (n *IndexExpression) expressionNode()      {}
+func (n *IndexExpression) TokenLiteral() string { return n.Token.Literal }
+func (n *IndexExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString("(")
+	out.WriteString(n.Left.String())
+	out.WriteString("[")
+	out.WriteString(n.Index.String())
+	out.WriteString("])")
+	return out.String()
+}
+
 type CallExpression struct {
 	Token     token.Token
 	Function  Expression

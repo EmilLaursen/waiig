@@ -37,10 +37,6 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	case *ast.Boolean:
 		return nativeBoolToBoolObj(node.Value)
-		if node.Value {
-			return TRUE
-		}
-		return FALSE
 
 	case *ast.StringLiteral:
 		return &object.String{Value: node.Value}
@@ -70,6 +66,18 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			Env:    env,
 		}
 
+	case *ast.IndexExpression:
+		left := Eval(node.Left, env)
+		if isError(left) {
+			return left
+		}
+
+		index := Eval(node.Index, env)
+		if isError(index) {
+			return index
+		}
+		return evalIndexExpression(left, index)
+
 	case *ast.CallExpression:
 		fn := Eval(node.Function, env)
 		if isError(fn) {
@@ -82,6 +90,13 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 
 		return applyfunction(fn, args)
+
+	case *ast.ArrayLiteral:
+		elems := evalExpressions(node.Elems, env)
+		if len(elems) == 1 && isError(elems[0]) {
+			return elems[0]
+		}
+		return &object.Array{Elems: elems}
 
 	case *ast.PrefixExpression:
 		right := Eval(node.Right, env)
@@ -168,6 +183,29 @@ func isTruthy(o object.Object) bool {
 	default:
 		return true
 	}
+}
+
+func evalIndexExpression(left, index object.Object) object.Object {
+	switch {
+	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
+		return evalArrayIndexExpression(left, index)
+	default:
+		return newErr("index operator not supported: %s", left.Type())
+	}
+}
+
+func evalArrayIndexExpression(array, index object.Object) object.Object {
+	arrobj := array.(*object.Array)
+	idx := index.(*object.Integer).Value
+	m := int64(len(arrobj.Elems))
+	if m == 0 {
+		return NULL
+	}
+	d := idx % m
+	if d < 0 {
+		d += m
+	}
+	return arrobj.Elems[d]
 }
 
 func evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {

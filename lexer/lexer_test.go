@@ -136,6 +136,12 @@ func TestNextToken(t *testing.T) {
 		token.Ch(";"),
 		{token.STRING, ""},
 		token.Ch(";"),
+		{token.LBRACKET, "["},
+		{token.INT, "1"},
+		{token.COMMA, ","},
+		{token.INT, "2"},
+		{token.RBRACKET, "]"},
+		token.Ch(";"),
 		{token.EOF, ""},
 	}
 
@@ -162,6 +168,7 @@ if (0005 < 0010) {
 "trololo";
 "foo bar";
 "";
+[1,2];
 `
 
 	l := New(input)
