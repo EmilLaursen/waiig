@@ -374,6 +374,27 @@ func TestArrayLiterals(t *testing.T) {
 	testIntegerObj(t, 6, res.Elems[2])
 }
 
+func TestHashIndexExpressions(t *testing.T) {
+	tests := []struct {
+		input string
+		want  any
+	}{
+		{`{"foo":5}["foo"]`, 5},
+		{`{"foo":5}["bar"]`, nil},
+	}
+
+	for i, tt := range tests {
+		got := testEval(tt.input)
+		msg := fmt.Sprintf("case: %d input=%s want=%+v", i, tt.input, tt.want)
+		switch w := tt.want.(type) {
+		case int:
+			testIntegerObj(t, int64(w), got, msg)
+		default:
+			require.Equal(t, NULL, got, msg)
+		}
+	}
+}
+
 func TestArrayIndexExpressions(t *testing.T) {
 	tests := []struct {
 		input string
@@ -392,12 +413,12 @@ func TestArrayIndexExpressions(t *testing.T) {
 			3,
 		},
 		{
-			"[1, 2, 3][4]",
+			"[1, 2, 3][-2]",
 			2,
 		},
 		{
-			"[1, 2, 3][-5]",
-			2,
+			"[1, 2, 3][-3]",
+			1,
 		},
 		{
 			"[][0]",
@@ -430,10 +451,6 @@ func TestArrayIndexExpressions(t *testing.T) {
 		{
 			"let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]",
 			2,
-		},
-		{
-			"[1, 2, 3][3]",
-			1,
 		},
 		{
 			"[1, 2, 3][-1]",
@@ -476,16 +493,36 @@ func TestArrayIndexExpressions(t *testing.T) {
 			[]int64{},
 		},
 		{
-			`[1, 2, 3][-100:-100]`,
+			`[1, 2, 3][-1:-1]`,
 			[]int64{},
 		},
 		{
-			`[1, 2, 3][88:88]`,
+			`[1, 2, 3][1:1]`,
 			[]int64{},
 		},
 		{
 			"let myArray = [1, 2, 3]; let i = myArray[-1:]; i[0]",
 			3,
+		},
+		{
+			`[1][1:]`,
+			[]int64{},
+		},
+		{
+			`[1][2:]`,
+			[]int64{},
+		},
+		{
+			`[1,2][2:]`,
+			[]int64{},
+		},
+		{
+			`[1,2,3][3:]`,
+			[]int64{},
+		},
+		{
+			`[][3:]`,
+			[]int64{},
 		},
 	}
 

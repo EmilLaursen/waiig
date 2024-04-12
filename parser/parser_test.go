@@ -687,7 +687,7 @@ func TestParsingSliceExpressions(t *testing.T) {
 		p := FromInput(tt.input)
 		program := p.ParseProgram()
 		baseParseCheck(t, p, program, 1)
-		msg := fmt.Sprintf("case=%d input=%s ident=%s got=%+v", i, tt.input, tt.ident, program.Statements[0])
+		msg := fmt.Sprintf("case=%d input=%s ident=%v got=%+v", i, tt.input, tt.ident, program.Statements[0])
 
 		stmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[0], msg)
 		iexp := testutils.IsType[*ast.SliceExpression](t, stmt.Expression, msg)
@@ -696,5 +696,64 @@ func TestParsingSliceExpressions(t *testing.T) {
 		testLiteralExpression(t, tt.ident, iexp.Left)
 		testLiteralExpression(t, tt.left, iexp.IndexLeft)
 		testLiteralExpression(t, tt.right, iexp.IndexRight)
+	}
+}
+
+func TestMapParse(t *testing.T) {
+	input := `
+let map = fn(arr, f) {
+    let iter = fn(arr, acc) {
+        if (len(arr) == 0) {
+            acc
+        } else {
+            iter(arr[1:], push(acc, f(arr[0])));
+        }
+    }
+    iter(arr, []);
+};`
+
+	p := FromInput(input)
+	program := p.ParseProgram()
+	baseParseCheck(t, p, program, 1)
+	msg := fmt.Sprintf("case=%d input=%s got=%+v", 0, input, program.Statements)
+
+	stmt := testutils.IsType[*ast.LetStatement](t, program.Statements[0], msg)
+	// fmt.Println(stmt.String())
+	fnExp := testutils.IsType[*ast.FunctionLiteral](t, stmt.Value, msg)
+	_ = fnExp
+	// fmt.Println(fnExp.String())
+	// for _, bs := range fnExp.Body.Statements {
+	// 	fmt.Println(bs.String())
+	// }
+	// callestmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[1], msg)
+	// _ = callestmt
+}
+
+func TestHashLiteralParsing(t *testing.T) {
+	tests := []struct {
+		input string
+		want  map[string]int64
+	}{
+		{`{"one":1,"two":2,"three":3}`, map[string]int64{"one": 1, "two": 2, "three": 3}},
+		{`{}`, map[string]int64{}},
+		// {`{"one": 1+1,"two":10-8,"three": 15 / 5}`, map[string]int64{
+		// 	"one":2,"two":2,"three":3
+		// }},
+	}
+
+	for i, tt := range tests {
+		p := FromInput(tt.input)
+		program := p.ParseProgram()
+		baseParseCheck(t, p, program, 1)
+		msg := fmt.Sprintf("case=%d input=%s got=%+v", i, tt.input, program.Statements[0])
+
+		stmt := testutils.IsType[*ast.ExpressionStatement](t, program.Statements[0])
+		hl := testutils.IsType[*ast.HashLiteral](t, stmt.Expression, msg)
+
+		for k, v := range hl.Pairs {
+			key := testutils.IsType[*ast.StringLiteral](t, k, msg).Value
+			want := tt.want[key]
+			testIntegerLiteral(t, v, want)
+		}
 	}
 }

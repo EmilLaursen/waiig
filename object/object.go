@@ -3,6 +3,7 @@ package object
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
 	"strings"
 
 	"github.com/EmilLaursen/wiig/ast"
@@ -12,6 +13,15 @@ type (
 	ObjectType      string
 	BuiltinFunction func(args ...Object) Object
 )
+
+type HashKey struct {
+	Type  ObjectType
+	Value uint64
+}
+
+type Hashable interface {
+	HashKey() HashKey
+}
 
 const (
 	INTEGER_OBJ      ObjectType = "INTEGER"
@@ -23,7 +33,30 @@ const (
 	STRING_OBJ       ObjectType = "STRING"
 	BUILTIN_OBJ      ObjectType = "BUILTIN"
 	ARRAY_OBJ        ObjectType = "ARRAY"
+	HASH_OBJ         ObjectType = "HASH"
 )
+
+type HashPair struct {
+	Key   Object
+	Value Object
+}
+
+type Hash struct {
+	Pairs map[HashKey]HashPair
+}
+
+func (h *Hash) Type() ObjectType { return HASH_OBJ }
+func (h *Hash) Inspect() string {
+	var out bytes.Buffer
+	var pairs []string
+	for _, pair := range h.Pairs {
+		pairs = append(pairs, fmt.Sprintf("%s: %s", pair.Key.Inspect(), pair.Value.Inspect()))
+	}
+	out.WriteString("{")
+	out.WriteString(strings.Join(pairs, ", "))
+	out.WriteString("}")
+	return out.String()
+}
 
 func IsTypeOrNULL(one Object, ot ObjectType) bool {
 	if one.Type() == ot {
@@ -43,6 +76,9 @@ type Integer struct {
 
 func (i *Integer) Inspect() string  { return fmt.Sprintf("%d", i.Value) }
 func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
+func (i *Integer) HashKey() HashKey {
+	return HashKey{Type: i.Type(), Value: uint64(i.Value)}
+}
 
 type Boolean struct {
 	Value bool
@@ -50,6 +86,15 @@ type Boolean struct {
 
 func (i *Boolean) Inspect() string  { return fmt.Sprintf("%t", i.Value) }
 func (i *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
+func (i *Boolean) HashKey() HashKey {
+	var v uint64
+	if i.Value {
+		v = 1
+	} else {
+		v = 0
+	}
+	return HashKey{Type: i.Type(), Value: v}
+}
 
 type String struct {
 	Value string
@@ -57,6 +102,11 @@ type String struct {
 
 func (i *String) Inspect() string  { return i.Value }
 func (i *String) Type() ObjectType { return STRING_OBJ }
+func (i *String) HashKey() HashKey {
+	h := fnv.New64a()
+	h.Write([]byte(i.Value))
+	return HashKey{Type: i.Type(), Value: h.Sum64()}
+}
 
 type Null struct{}
 

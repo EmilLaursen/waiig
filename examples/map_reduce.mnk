@@ -1,0 +1,20 @@
+let fold = fn(arr, b, f) {
+    let iter = fn(arr, acc) {
+        if (len(arr) == 0) {
+           acc
+        } else {
+          iter(arr[1:], f(acc, arr[0]));
+        }
+    }
+
+    iter(arr, b);
+};
+
+let map = fn(arr, f) {
+    fold(arr, [], fn(arr, elem) { push(arr, f(elem)) })
+};
+
+let a = [1,2,3,4,5,6];
+let double = fn(x) { x*2 };
+
+[map(a, double), map(a, double)];

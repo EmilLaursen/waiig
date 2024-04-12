@@ -2,6 +2,7 @@ package ast
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	"github.com/EmilLaursen/wiig/token"
@@ -198,6 +199,27 @@ func (n *ArrayLiteral) String() string {
 		out.WriteString(n.Elems[last].String())
 	}
 	out.WriteString("]")
+	return out.String()
+}
+
+type HashLiteral struct {
+	Token token.Token
+	Pairs map[Expression]Expression
+}
+
+var _ Expression = &HashLiteral{}
+
+func (n *HashLiteral) expressionNode()      {}
+func (n *HashLiteral) TokenLiteral() string { return n.Token.Literal }
+func (n *HashLiteral) String() string {
+	var out bytes.Buffer
+	pairs := []string{}
+	for k, v := range n.Pairs {
+		pairs = append(pairs, fmt.Sprintf("%s:%s", k.String(), v.String()))
+	}
+	out.WriteString("{")
+	out.WriteString(strings.Join(pairs, ", "))
+	out.WriteString("}")
 	return out.String()
 }
 

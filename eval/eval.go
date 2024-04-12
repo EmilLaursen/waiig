@@ -123,6 +123,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 		return &object.Array{Elems: elems}
 
+	case *ast.HashLiteral:
+		return evalHashLiteral(node, env)
+
 	case *ast.PrefixExpression:
 		right := Eval(node.Right, env)
 		if isError(right) {
@@ -210,6 +213,35 @@ func isTruthy(o object.Object) bool {
 	}
 }
 
+func evalHashLiteral(node *ast.HashLiteral, env *object.Environment) object.Object {
+	pairs := make(map[object.HashKey]object.HashPair)
+
+	for kn, vn := range node.Pairs {
+		key := Eval(kn, env)
+		if isError(key) {
+			return key
+		}
+
+		hashKey, ok := key.(object.Hashable)
+		if !ok {
+			return newErr("key is not hashable: %s", key.Type())
+		}
+
+		value := Eval(vn, env)
+		if isError(value) {
+			return value
+		}
+
+		hashed := hashKey.HashKey()
+		pairs[hashed] = object.HashPair{
+			Key:   key,
+			Value: value,
+		}
+	}
+
+	return &object.Hash{Pairs: pairs}
+}
+
 func evalSliceExpression(left, ileft, rleft object.Object) object.Object {
 	ileftGood := object.IsTypeOrNULL(ileft, object.INTEGER_OBJ)
 	irightGood := object.IsTypeOrNULL(rleft, object.INTEGER_OBJ)
@@ -234,13 +266,13 @@ func evalArraySliceExpression(array, ileft, iright object.Object) object.Object 
 	var rightIdx int64 = int64(n)
 
 	if ileft.Type() != object.NULL_OBJ {
-		leftIdx = moduloIndex(ileft.(*object.Integer).Value, n)
+		leftIdx = getIndex(ileft.(*object.Integer).Value, n)
 	}
 	if iright.Type() != object.NULL_OBJ {
-		rightIdx = moduloIndex(iright.(*object.Integer).Value, n)
+		rightIdx = getIndex(iright.(*object.Integer).Value, n)
 	}
 
-	if leftIdx >= rightIdx {
+	if leftIdx < 0 || rightIdx < 0 || leftIdx >= rightIdx {
 		return &object.Array{Elems: []object.Object{}}
 	}
 
@@ -255,21 +287,26 @@ func evalIndexExpression(left, index object.Object) object.Object {
 	switch {
 	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
 		return evalArrayIndexExpression(left, index)
+	case left.Type() == object.HASH_OBJ:
+		return evalHashIndexExpression(left, index)
 	default:
 		return newErr("index operator not supported: %s", left.Type())
 	}
 }
 
 // fits idx inside arrSize similar to python array indexing: x[-1] == x[len(x)-1]
-// Return -1 sentinel on empty array
-func moduloIndex(idx int64, arrSize int) int64 {
+// Return -1 sentinel for index out of bounds.
+func getIndex(idx int64, arrSize int) int64 {
 	m := int64(arrSize)
 	if m == 0 {
 		return -1
 	}
-	d := idx % m
-	if d < 0 {
-		d += m
+	d := idx
+	if idx < 0 {
+		d = idx + m
+	}
+	if !(0 <= d && d < m) {
+		return -1
 	}
 	return d
 }
@@ -277,11 +314,24 @@ func moduloIndex(idx int64, arrSize int) int64 {
 func evalArrayIndexExpression(array, index object.Object) object.Object {
 	arrobj := array.(*object.Array)
 	idx := index.(*object.Integer).Value
-	d := moduloIndex(idx, len(arrobj.Elems))
+	d := getIndex(idx, len(arrobj.Elems))
 	if d < 0 {
 		return NULL
 	}
 	return arrobj.Elems[d]
+}
+
+func evalHashIndexExpression(hash, index object.Object) object.Object {
+	hsh := hash.(*object.Hash)
+	key, ok := index.(object.Hashable)
+	if !ok {
+		return newErr("unusable as hash key: %s", index.Type())
+	}
+	pair, ok := hsh.Pairs[key.HashKey()]
+	if !ok {
+		return NULL
+	}
+	return pair.Value
 }
 
 func evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {
